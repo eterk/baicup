@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.eterk</groupId>
+    <artifactId>baicup</artifactId>
+    <version>1.0</version>
+
+    <properties>
+        <scala.major.version>2.13</scala.major.version>
+        <scala.version>2.13.12</scala.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <main.class>org.eterk.Main</main.class>
+        <gui.class>org.eterk.GUIClient</gui.class>
+        <app.name>baicup</app.name>
+        <app.version>${version}.0.0</app.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>nexus</id>
+            <url>http://localhost:8081/repository/maven-public/</url>
+        </repository>
+    </repositories>
+
+    <distributionManagement>
+        <repository>
+            <id>nexus</id>
+            <url>http://localhost:8081/repository/maven-releases/</url>
+        </repository>
+    </distributionManagement>
+
+    <dependencies>
+        <!-- 添加scala库作为依赖包 -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-compiler</artifactId>
+            <version>${scala.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.14.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.14.1</version>
+        </dependency>
+
+
+        <!--        <dependency>-->
+        <!--            <groupId>org.scala-lang</groupId>-->
+        <!--            <artifactId>scala-reflect</artifactId>-->
+        <!--            <version>${scala.version}</version>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.scala-lang</groupId>-->
+        <!--            <artifactId>scala-tools</artifactId>-->
+        <!--            <version>${scala.version}</version>-->
+        <!--        </dependency>-->
+        <!--        use in icon colorful-->
+        <!-- https://mvnrepository.com/artifact/commons-net/commons-net -->
+
+
+        <!--use in architecture -->
+        <dependency>
+            <groupId>io.github.eterk</groupId>
+            <artifactId>mian</artifactId>
+            <version>0.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>3.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_${scala.major.version}</artifactId>
+            <version>3.2.17</version>
+            <scope>test</scope>
+        </dependency>
+
+
+        <!-- https://mvnrepository.com/artifact/com.osinka.i18n/scala-i18n -->
+        <dependency>
+            <groupId>com.osinka.i18n</groupId>
+            <artifactId>scala-i18n_2.13</artifactId>
+            <version>1.0.3</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.fusesource.jansi/jansi -->
+
+
+    </dependencies>
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <version>4.5.3</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- https://mvnrepository.com/artifact/com.akathist.maven.plugins.launch4j/launch4j-maven-plugin -->
+                <groupId>com.akathist.maven.plugins.launch4j</groupId>
+                <artifactId>launch4j-maven-plugin</artifactId>
+                <version>2.5.0</version>
+                <executions>
+                    <execution>
+                        <id>gui</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>launch4j</goal>
+                        </goals>
+                        <configuration>
+                            <headerType>console</headerType>
+                            <!-- The name of the exe file to create -->
+                            <outfile>target/${artifactId}-gui-${app.version}.exe</outfile>
+                            <!-- The name of the jar file to wrap -->
+                            <jar>target/${artifactId}-${version}.jar</jar>
+                            <classPath>
+                                <mainClass>${gui.class}</mainClass>
+                                <addDependencies>true</addDependencies>
+                                <preCp>lib/*.jar</preCp>
+                            </classPath>
+                            <!-- The minimum JRE version required -->
+                            <jre>
+                                <minVersion>1.8.0</minVersion>
+                            </jre>
+                            <!-- The icon file to use for the exe file -->
+                            <icon>src/main/resources/static/ico.ico</icon>
+                            <!-- The version information to display for the exe file -->
+                            <versionInfo>
+                                <fileVersion>${app.version}</fileVersion>
+                                <txtFileVersion>${app.version}</txtFileVersion>
+                                <fileDescription>useful kit</fileDescription>
+                                <productVersion>${app.version}</productVersion>
+                                <txtProductVersion>${app.version}</txtProductVersion>
+                                <productName>${app.name}</productName>
+                                <internalName>${app.name}</internalName>
+                                <originalFilename>${app.name}${app.version}-gui.exe</originalFilename>
+                                <companyName>${groupId}</companyName>
+                            </versionInfo>
+
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--            &lt;!&ndash; 使用maven-dependency-plugin来分析项目的依赖 &ndash;&gt;-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <!--                    <execution>-->
+                    <!--                        <id>analyze</id>-->
+                    <!--                        <goals>-->
+                    <!--                            <goal>analyze-only</goal>-->
+                    <!--                        </goals>-->
+                    <!--                        <configuration>-->
+                    <!--                            <failOnWarning>true</failOnWarning>-->
+                    <!--                        </configuration>-->
+                    <!--                    </execution>-->
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <!--                            <includeArtifactIds>stanford-corenlp</includeArtifactIds>-->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>
+
