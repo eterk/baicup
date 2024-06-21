@@ -3,7 +3,7 @@ package io.github.eterk.baicup
 import java.io._
 import java.net.URL
 import java.nio.file.{Files, Paths, StandardCopyOption}
-import java.time.{LocalDate, LocalDateTime}
+import java.time.LocalDateTime
 import scala.util.{Failure, Success, Try}
 
 
@@ -71,18 +71,18 @@ object FTPKit {
 
 
   // 定义一个函数，从一个 ftp 链接获取目录信息，并返回一个 Map，其中键是文件类型，值是 FormatInfo
-  def getSummaryByFormat(ftpLink: String): SummaryInfo = {
+  private def getSummaryByFormat(ftpLink: String, tpeNeed: String => Boolean, ignore: String => Boolean): SummaryInfo = {
     // 创建一个 Map 对象，存储文件类型和 FormatInfo 的映射
     val summaryMap = scala.collection.mutable.Map[String, FormatInfo]()
     // 调用辅助函数，从根目录开始遍历
-    traverseDir(ftpLink, summaryMap, "")
+    traverseDir(ftpLink, summaryMap, tpeNeed, ignore, "")
 
     // 返回一个不可变的 Map
 
     val newMap =
       summaryMap.map {
         case (k, v) =>
-          val newV = v.copy(pathSeq = v.pathSeq.map(_.replaceFirst(ftpLink, "/")))
+          val newV = v.copy(pathSeq = v.pathSeq.map(_.replaceFirst(ftpLink, "")))
           k -> newV
       }.toMap
 
@@ -94,47 +94,61 @@ object FTPKit {
   // 定义一个辅助函数，递归地遍历 ftp 目录的所有子目录和文件，更新 Map 中的数据
   private def traverseDir(ftpLink: String,
                           summaryMap: scala.collection.mutable.Map[String, FormatInfo],
+                          tpeNeed: String => Boolean,
+                          ignore: String => Boolean,
                           dir: String): Unit = {
 
     // 创建一个 URL 对象，连接 ftp 服务器
     val url = new URL(ftpLink + dir)
-
+    logger.info("visit " + url)
 
     // 创建一个 BufferedReader 对象，读取目录信息
     Try(new BufferedReader(new InputStreamReader(url.openStream()))) match {
-
-      case Failure(exception) => println(s"visit => $url failed")
+      case Failure(exception) =>
+        //        exception.printStackTrace()
+        logger.error(s"visit failed => $url( ${exception.getMessage})")
       case Success(br) =>
         var line = br.readLine()
 
         while (line != null) {
           val info = parseFtpInfo(line)
-          info.getTpe match {
-            case "DIR" => // 获取文件夹名
-              // 在 summaryMap 中增加文件夹的数量
-              summaryMap
-                .keys
-                .foreach { k =>
-                  val info = summaryMap(k)
-                  summaryMap(k) = info.copy(dirNum = info.dirNum + 1)
-                }
-              // 递归地遍历该文件夹
-              traverseDir(ftpLink, summaryMap, dir + info.name + "/")
-            case tpe =>
-              val fileLink = ftpLink + dir + info.name
-              // 在 summaryMap 中增加文件的数量，文件的大小，以及文件的路径
-              val formatInfo: FormatInfo = summaryMap.getOrElse(tpe, FormatInfo(tpe, 0, 0, Seq()))
-              summaryMap(tpe) = formatInfo.copy(
-                fileSize = formatInfo.fileSize + info.size,
-                pathSeq = formatInfo.pathSeq :+ fileLink
-              )
+          val fileLink = ftpLink + dir + info.name
+          if (ignore(fileLink)) {
+            logger.info(s"ignore ${fileLink}")
+          } else {
+            info.getTpe match {
+              case "DIR" => // 获取文件夹名
+                // 在 summaryMap 中增加文件夹的数量
+                summaryMap
+                  .keys
+                  .foreach { k =>
+                    val info = summaryMap(k)
+                    summaryMap(k) = info.copy(dirNum = info.dirNum + 1)
+                  }
+                logger.info("visit=> " + ftpLink)
+                // 递归地遍历该文件夹
+                traverseDir(ftpLink, summaryMap, tpeNeed, ignore, endWithFS(dir + info.name))
+              case tpe if tpeNeed(tpe) =>
+                // 在 summaryMap 中增加文件的数量，文件的大小，以及文件的路径
+                val formatInfo: FormatInfo = summaryMap.getOrElse(tpe, FormatInfo(tpe, 0, 0, Seq()))
+                summaryMap(tpe) = formatInfo.copy(
+                  fileSize = formatInfo.fileSize + info.size,
+                  pathSeq = formatInfo.pathSeq :+ fileLink
+                )
+              case skipPart =>
+                logger.trace(s"skip $skipPart $fileLink")
+            }
           }
-
           // 读取下一行
           line = br.readLine()
         }
         // 关闭 BufferedReader 对象
-        br.close()
+        Try(br.close()) match {
+          case Success(o) =>
+          case Failure(e) =>
+            logger.error("buffer reader 关闭异常")
+        }
+
     }
   }
 
@@ -227,14 +241,10 @@ object FTPKit {
     map
       .foreach {
         case (k, v) =>
-          val output = outputDir + k + "/"
-          println(output)
+          val output = endWithFS(outputDir + k)
+          logger.info(s"starting  ${k}=> $output")
 
-          val target = new File(output)
-          // 如果目标目录不存在，就创建它
-          if (!target.exists()) {
-            target.mkdirs()
-          }
+          createIfNotExists(output)
 
           v.pathSeq
             .foreach(f => {
@@ -242,20 +252,33 @@ object FTPKit {
               val newName = PathConvert.pathToName(f)
 
               if (f != PathConvert.nameToPath(newName)) {
-                println(" 无法还原" + f + "  " + newName)
+                logger.error(" 无法还原" + f + "  " + newName)
               }
 
 
               val info = f + "   " + newName
 
+              logger.info(s"copy => ${ftpRoot + f}")
               Try(copyFileFromFtp(ftpRoot + f, output, newName))
                 .recover {
-                  case e => println(info + " " + e.getMessage)
+                  case e => logger.error(info + " " + e.getMessage)
                 }
 
             })
 
       }
+
+
+  }
+
+  def ignoreFunc(regexes: Seq[String]): String => Boolean = {
+
+    regexes.map(r => {
+        case s: String if r.r.matches(s) => true
+      }: PartialFunction[String, Boolean])
+      .reduce(_ orElse _)
+      .applyOrElse(_, (s: String) => false)
+
   }
 
   /**
@@ -270,39 +293,50 @@ object FTPKit {
    */
 
   def main(args: Array[String]): Unit = {
-
-    val outputDir = new File(s"s://tmp/pad_backup/${LocalDate.now()}")
-    if (!outputDir.exists()) {
-      println("创建")
-      outputDir.mkdirs()
-    }
-
-    val (user, password) =
-      "anonymous" -> "anonymous"
-    //     "admin" -> "admin"
-
-    val kit = FTPKit("192.168.2.182", 7021, user, password, outputDir)
-    println(kit)
-    kit.execute()
+    //
+    //    val outputDir = s"s://tmp/pad_backup/${LocalDate.now()}"
+    //
+    //
+    //    val (user, password) =
+    //      "anonymous" -> "anonymous"
+    //    //     "admin" -> "admin"
+    //
+    //    val param = ControlParam("192.168.2.182", 7021, user, password, outputDir, Seq.empty, Seq.empty, delete = false)
+    //    println(param)
+    //    FTPKit(param).execute()
   }
 
+  private val createIfNotExists: String => Boolean = (dir: String) => {
+    if (!new File(dir).exists()) {
+      println(s"create dir ${dir}")
+      new File(dir).mkdirs()
+    }
+    val flag =
+      new File(dir).exists()
 
+    println(flag)
+    flag
+
+  }
 }
 
-case class FTPKit(host: String, port: Int, user: String, password: String, dest: File) {
+//  todo 用commons-net 重写这个功能
+case class FTPKit(context: ControlParam) {
 
   import FTPKit._
+  import context._
 
-  private val ftpRoot: String = s"ftp://${host}:${port}/"
-  private val scanRstCachePath: String = dest.getAbsolutePath + "/" + "scan_result"
-  private val backupDir: String = dest.getAbsolutePath + "/" + "backup/"
-  private val delTmpDir: String = dest.getAbsolutePath + "/" + "del_cmd/"
-  private val createIfNotExists = (dir: String) => {
-    if (!new File(dir).exists()) {
-      new File(dir).mkdir()
-    }
-  }
+  private val outputDir: File = new File(dest)
 
+
+  private val typeNeed: String => Boolean = needTypes.contains
+  val ignore: String => Boolean = ignoreFunc(skipPath)
+  private val ftpRoot: String = s"ftp://${host}:${port}/${src}"
+  private val scanRstCachePath: String = outputDir.getAbsolutePath + File.separator + "scan_result"
+  private val backupDir: String = outputDir.getAbsolutePath + File.separator + "backup" + File.separator
+  private val delTmpDir: String = outputDir.getAbsolutePath + File.separator + "del_cmd" + File.separator
+
+  createIfNotExists(dest)
   createIfNotExists(backupDir)
   createIfNotExists(delTmpDir)
 
@@ -315,8 +349,8 @@ case class FTPKit(host: String, port: Int, user: String, password: String, dest:
   def load(): SummaryInfo = {
 
     if (!new File(scanRstCachePath).exists()) {
-      println("summary")
-      val mapG: SummaryInfo = getSummaryByFormat(ftpRoot)
+      logger.info("summary")
+      val mapG: SummaryInfo = getSummaryByFormat(ftpRoot, typeNeed, ignore)
       saveObj(mapG, scanRstCachePath)
     }
 
@@ -328,10 +362,10 @@ case class FTPKit(host: String, port: Int, user: String, password: String, dest:
 
     map.foreach {
       case (k, v) =>
-        println("delete:" + k)
+        logger.info("delete:" + k)
         val filesMap = v.pathSeq.zipWithIndex.groupMap(_._2 / 80)(_._1)
         filesMap.foreach(x => {
-          println(x._1 + "/" + filesMap.size)
+          logger.info(x._1 + "/" + filesMap.size)
           val tmpName = k.replaceAll("\\.", "") + "_" + x._1 ++ "_" + System.nanoTime()
           delete(tmpName, x._2)
         })
@@ -343,24 +377,6 @@ case class FTPKit(host: String, port: Int, user: String, password: String, dest:
   }
 
   // 定义一个 Seq，包含我列举的常用格式
-  private val needTypes = Seq(
-    ".jpeg",
-    ".jpg",
-    ".zip",
-    ".png", // 图像文件格式
-    //      ".pdf", // 文档文件格式
-    //      ".docx", // 文档文件格式
-    ".xlsx", // 电子表格文件格式
-    ".wav", // 音频文件格式
-    ".mp3", // 音频文件格式
-    ".mp4", // 视频文件格式
-    ".zip", // 压缩文件格式
-    //      ".txt", // 文本文件格式
-    ".csv", // 文本文件格式
-    //      ".xml", // 文本文件格式
-    ".gif", // 图像文件格式
-    //      ".bat" // 批处理文件格式
-  ).distinct
 
 
   def execute(): Unit = {
@@ -370,11 +386,14 @@ case class FTPKit(host: String, port: Int, user: String, password: String, dest:
 
     val needPart: Map[String, FormatInfo] =
       map
-        .filter(x => needTypes.contains(x._1))
+        .filter(x => typeNeed(x._1))
 
     scp(backupDir, ftpRoot, needPart)
+    if (delete) {
+      del(needPart)
+    }
 
-    del(needPart)
+
   }
 
 

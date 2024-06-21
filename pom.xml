@@ -6,7 +6,7 @@
 
     <groupId>org.eterk</groupId>
     <artifactId>baicup</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
 
     <properties>
         <scala.major.version>2.13</scala.major.version>
@@ -14,8 +14,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <main.class>org.eterk.Main</main.class>
-        <gui.class>org.eterk.GUIClient</gui.class>
+        <main.class>io.github.eterk.baicup.Main</main.class>
+        <gui.class>io.github.eterk.baicup.Main</gui.class>
         <app.name>baicup</app.name>
         <app.version>${version}.0.0</app.version>
     </properties>
@@ -76,7 +76,38 @@
         <dependency>
             <groupId>io.github.eterk</groupId>
             <artifactId>mian</artifactId>
-            <version>0.1</version>
+            <version>0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scala-lang.modules</groupId>
+            <artifactId>scala-swing_2.13</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-net</groupId>
+            <artifactId>commons-net</artifactId>
+            <version>3.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-core_2.13</artifactId>
+            <version>0.14.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-generic_2.13</artifactId>
+            <version>0.14.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-parser_2.13</artifactId>
+            <version>0.14.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-imaging</artifactId>
+            <version>1.0-alpha2</version>
         </dependency>
 
         <dependency>
@@ -93,10 +124,11 @@
         </dependency>
 
 
+
         <!-- https://mvnrepository.com/artifact/com.osinka.i18n/scala-i18n -->
         <dependency>
             <groupId>com.osinka.i18n</groupId>
-            <artifactId>scala-i18n_2.13</artifactId>
+            <artifactId>scala-i18n_${scala.major.version}</artifactId>
             <version>1.0.3</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.fusesource.jansi/jansi -->
@@ -120,6 +152,49 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- 编译 Scala 代码 -->
+            <!--            <plugin>-->
+            <!--                <groupId>net.alchim31.maven</groupId>-->
+            <!--                <artifactId>scala-maven-plugin</artifactId>-->
+            <!--                <version>4.4.0</version>-->
+            <!--                <executions>-->
+            <!--                    <execution>-->
+            <!--                        <goals>-->
+            <!--                            <goal>compile</goal>-->
+            <!--                            <goal>testCompile</goal>-->
+            <!--                        </goals>-->
+            <!--                    </execution>-->
+            <!--                </executions>-->
+            <!--            </plugin>-->
+
+            <!-- 将所有依赖打包到一个 JAR 文件中 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <!-- https://mvnrepository.com/artifact/com.akathist.maven.plugins.launch4j/launch4j-maven-plugin -->
                 <groupId>com.akathist.maven.plugins.launch4j</groupId>
@@ -140,8 +215,8 @@
                             <jar>target/${artifactId}-${version}.jar</jar>
                             <classPath>
                                 <mainClass>${gui.class}</mainClass>
-                                <addDependencies>true</addDependencies>
-                                <preCp>lib/*.jar</preCp>
+                                <addDependencies>false</addDependencies>
+                                <!--                                <preCp>lib/*.jar</preCp>-->
                             </classPath>
                             <!-- The minimum JRE version required -->
                             <jre>
@@ -190,6 +265,27 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
                             <!--                            <includeArtifactIds>stanford-corenlp</includeArtifactIds>-->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>${artifactId}${version}</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <descriptors>
+                                <descriptor>src/main/assembly/assembly.xml</descriptor>
+                            </descriptors>
                         </configuration>
                     </execution>
                 </executions>

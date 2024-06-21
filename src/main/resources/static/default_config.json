@@ -1,0 +1,25 @@
+{
+  "host": "192.168.4.182",
+  "port": 7021,
+  "user": "anonymous",
+  "password": "anonymous",
+  "dest": "backup/",
+  "src": "/",
+  "needTypes": [
+    ".wav",
+    ".mp3",
+    ".mp4",
+    ".csv",
+    ".gif",
+    ".jpg",
+    "jpeg",
+    ".png",
+    ".bmp"
+  ],
+  "skipPath": [
+    ".*/.globalTrash/$",
+    ".*/.thumbnails/$",
+    ".*com.miui.*"
+  ],
+  "delete": true
+}
